@@ -2,19 +2,31 @@ import axios from 'axios';
 import { timeout } from './index.js';
 
 export async function checkEligibility(address) {
-    let res = await axios.get(`https://atlantic-2.sunken-treasure.seinetwork.io/eligibility?address=${address}`).catch(error => console.log(error));
+    let res = await axios
+        .get(`https://atlantic-2.sunken-treasure.seinetwork.io/eligibility?address=${address}`)
+        .catch(async error => console.log(error?.response?.data?.message));
 
     if (res?.data) {
+        res?.data?.status !== 'success' && console.log(res?.data?.message);
+        await timeout(5000)
         return res.data.data
+    } else {
+        await timeout(10000)
+        return await checkEligibility(address)
     }
 }
 
-async function checkGiftStatus(address) {
-    let res = await axios.get(`https://atlantic-2.sunken-treasure.seinetwork.io/gift?recipientAddress=${address}`).catch(error => console.log(error));
+export async function checkGiftStatus(address) {
+    let res = await axios
+        .get(`https://atlantic-2.sunken-treasure.seinetwork.io/gift?recipientAddress=${address}`)
+        .catch(async error => console.log(error?.response?.data?.message));
 
     if (res?.data) {
-        console.log(res.data.data);
+        // console.log(res.data);
         return res.data.data
+    } else {
+        await timeout(10000)
+        return await checkGiftStatus(address)
     }
 }
 
@@ -26,7 +38,6 @@ export async function waitForEligibility(address, txCount) {
         let data = await checkEligibility(address)
 
         if (data?.transactions > txCount * 0.6) { // percent of "missed" txs
-            console.log(`Tx count: ${data?.transactions}, gifts to send: ${data?.numGifts}`);
             return true
         } else await timeout(10000)
     }
@@ -41,10 +52,19 @@ export async function sendGift(senderAddress, recipientAddress) {
             senderAddress,
             recipientAddress
         }
-    }).catch(error => console.log(error));
+    }).catch(async error => {
+        console.log(error?.response?.data?.message);
+        if (error?.response?.data?.message == 'Too Many Requests') {
+            await timeout(5000)
+            await sendGift(senderAddress, recipientAddress)
+        }
+    });
+
 
     if (res?.data) {
         console.log(`Sending gift to ${recipientAddress} - ${res?.data?.status}`);
+        res?.data?.status !== 'success' && console.log(res?.data?.message);
+
         return res.data
     }
 }
@@ -58,11 +78,18 @@ export async function mintGift(senderAddress, recipientAddress) {
             "code": "WEJaTkRVRHdNUlJFd1BHby1CVlZ2WlRFQlM2aW1wVG9yYXA5VEI4WERBamItOjE2NzkxNDI2OTYxNzc6MTowOmFjOjE",
             "state": "5Dg4wVwv6D6X.rpScdbFNnK6kZu53MZX"
         }
-    }).catch(error => console.log(error));
+    }).catch(async error => {
+        console.log(error?.response?.data?.message);
+        if (error?.response?.data?.message == 'Too Many Requests') {
+            await timeout(10000)
+            await mintGift(senderAddress, recipientAddress)
+        }
+    });
 
     if (res?.data) {
         console.log('Minting gift -', res?.data?.status);
-        res?.data?.status != 'success' && console.log(res.data);
+        res?.data?.status !== 'success' && console.log(res?.data?.message);
+
         return res.data
     }
 }

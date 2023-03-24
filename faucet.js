@@ -12,7 +12,7 @@ export async function getTokensFromFaucet(address) {
                 address: address,
                 captchaKey: captchaSolution
             }
-        }).catch(err => console.log(err))
+        }).catch(err => console.log(err?.response?.data))
 
         if (res?.data) {
             console.log(`Faucet status: ${res?.data?.status}`);
