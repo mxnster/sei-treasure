@@ -28,12 +28,12 @@ async function getAddressFromMnemonic(mnemonic) {
 async function getBalance(address, coin = 'usei', sure = false) {
     try {
         for (let i = 0; i < 50; i++) {
-            const balance = await queryClient.cosmos.bank.v1beta1.allBalances({ address });
+            const balance = await queryClient.cosmos.bank.v1beta1.allBalances({ address }).catch(error => console.log('Check balance error:', error.code));
 
             if (sure) {
                 if (balance?.balances.length > 0) {
                     return balance?.balances.find(token => token.denom === coin)?.amount;
-                } else await timeout(1000)
+                } else await timeout(2000)
             } else return balance?.balances.find(token => token.denom === coin)?.amount;
         }
     } catch (err) {
@@ -65,7 +65,7 @@ async function waitForFaucetTokens(client, address) {
 async function getTxCount(client, address) {
     for (let i = 0; i < 20; i++) {
         try {
-            let data = await client.getSequence(address).catch(err => console.log(err))
+            let data = await client.getSequence(address).catch(err => console.log('Check tx count error:', err.code))
 
             if (data) {
                 return data?.sequence
@@ -102,7 +102,7 @@ async function recheckMode() {
         let address = await getAddressFromMnemonic(senderMnemonic)
         console.log(`TX wallet: ${address}`);
         await handleGifts(address, true)
-        await timeout(5000)
+        await timeout(4000)
         console.log('-'.repeat(90));
     }
 
@@ -145,24 +145,33 @@ async function recheckMode() {
                         saveMnemonic(walletTx.mnemonic, 'senders.txt');
 
                         let sufficientBalance = true;
+                        let counter = 0;
                         console.log('Sending txs...');
 
                         while (sufficientBalance) {
                             let randomWallet = await generateWallet()
                             let randomWalletAddress = await getAddressFromMnemonic(randomWallet.mnemonic)
-
+        
                             const amount = { amount: generateRandomAmount(config.txAmount.from, config.txAmount.to), denom: 'usei' };
                             const fee = calculateFee(90000, "0.02usei");
                             try {
                                 const response = await client.sendTokens(txWalletAddress, randomWalletAddress, [amount], fee);
-                                console.log(`TX data: https://sei.explorers.guru/transaction/${response.transactionHash}`);
+                                const nonceObject = response.events.find(event => event.type === 'tx' && event.attributes[0].key === 'acc_seq');
+                                const nonce = Number(nonceObject.attributes[0].value.split('/')[1]) + 1;
+                                counter++;
+                                console.log(`TX [${nonce}]: https://sei.explorers.guru/transaction/${response.transactionHash}`);
                             } catch (e) {
                                 if (e.message?.includes('insufficient')) {
                                     sufficientBalance = false;
                                 } else {
-                                    console.error(`Error while sending tx: ${e.message}`)
+                                    // console.error(`Error while sending tx: ${e.message}`)
                                     await timeout(5000)
                                 }
+                            }
+
+                            if (counter == config.checkGitftsEveryTxCount) {
+                                handleGifts(txWalletAddress)
+                                counter = 0
                             }
 
                             // txWalletBalance = await getBalance(txWalletAddress, 'usei', true);
