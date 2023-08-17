@@ -1,7 +1,7 @@
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { getSigningClient, getQueryClient } from "@sei-js/core";
 import { calculateFee } from "@cosmjs/stargate";
-import { checkEligibility, checkGiftStatus, checkNFTs, mintGift, openBox, sendGift, waitForEligibility, waitForGiftToBoMinted } from "./gifts.js";
+import { checkEligibility, checkEvmWalletRewards, checkGiftStatus, checkNFTs, checkSeiWalletRewards, mintGift, openBox, sendGift, waitForEligibility, waitForGiftToBoMinted } from "./gifts.js";
 import { getTokensFromFaucet } from "./faucet.js";
 import { config } from "./config.js";
 import ExcelJS from "exceljs";
@@ -108,15 +108,15 @@ async function handleGifts(txWalletAddress) {
 
 async function recheckMode() {
     let minted = 0;
-    let senders = parseFile('./mnemonics/senders.txt');
+    // let senders = parseFile('./mnemonics/senders.txt');
 
-    for (let senderMnemonic of senders) {
-        let address = await getAddressFromMnemonic(senderMnemonic)
-        console.log(`TX wallet: ${address}`);
-        await handleGifts(address, true)
-        await timeout(4000)
-        console.log('-'.repeat(90));
-    }
+    // for (let senderMnemonic of senders) {
+    //     let address = await getAddressFromMnemonic(senderMnemonic)
+    //     console.log(`TX wallet: ${address}`);
+    //     await handleGifts(address, true)
+    //     // await timeout(4000)
+    //     console.log('-'.repeat(90));
+    // }
 
     let gifts = parseFile('./mnemonics/gifts.txt');
 
@@ -137,7 +137,7 @@ async function recheckMode() {
             minted++
         }
 
-        await timeout(1000);
+        // await timeout(1000);
         console.log('-'.repeat(90));
     }
     console.log('Total minted', minted);
@@ -230,9 +230,35 @@ async function unboxMode() {
     await handleTable()
 }
 
+async function airdropMode() {
+    let senders = parseFile('./mnemonics/senders.txt');
+    let gifts = parseFile('./mnemonics/gifts.txt');
+    let evm = parseFile('./mnemonics/evm.txt');
+
+    for (let [index, senderMnemonic] of gifts.concat(senders).entries()) {
+        let address = await getAddressFromMnemonic(senderMnemonic)
+        console.log(`[${index + 1}] ${address}`);
+        await checkSeiWalletRewards(address)
+        console.log('-'.repeat(90));
+    }
+
+
+    for (let [index, address] of evm.entries()) {
+        console.log(`[${index + 1}] ${address}`);
+        await checkEvmWalletRewards(address)
+
+        console.log('-'.repeat(90));
+    }
+}
+
 
 
 (async () => {
+    if (config.airdropMode) {
+        await airdropMode()
+        return
+    }
+
     if (config.unboxMode) {
         await unboxMode()
         return

@@ -1,5 +1,11 @@
 import axios from 'axios';
 import { timeout } from './index.js';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import { config } from './config.js';
+
+const [ip, port, login, password] = config.proxy.split(":");
+const proxy = `http://${login}:${password}@${ip}:${port}`;
+const axiosProxyInstance = axios.create({ httpsAgent: new HttpsProxyAgent(proxy) });
 
 export async function checkEligibility(address) {
     let res = await axios
@@ -8,7 +14,7 @@ export async function checkEligibility(address) {
 
     if (res?.data) {
         res?.data?.status !== 'success' && console.log(res?.data?.message);
-        await timeout(5000)
+        // await timeout(5000)
         return res.data.data
     } else {
         await timeout(10000)
@@ -143,4 +149,26 @@ export async function waitForGiftToBoMinted(address) {
     }
 
     console.log('Waiting for mint stopped, timeout of 10 minutes exceeded');
+}
+
+export async function checkEvmWalletRewards(address) {
+    try {
+        let res = await axiosProxyInstance.get(`https://pacific-1.albatross.sei-internal.com/eligibility?originAddress=${address.toLowerCase()}`)
+        console.log(res?.data?.data);
+    } catch (err) {
+        console.log(err?.response?.data || err?.code);
+        await timeout(10000)
+        return checkEvmWalletRewards(address)
+    }
+}
+
+export async function checkSeiWalletRewards(address) {
+    try {
+        let res = await axiosProxyInstance.get(`https://incentivized-testnet.seinetwork.io/check-eligibility?seiAddress=${address.toLowerCase()}`)
+        console.log(res?.data);
+    } catch (err) {
+        console.log(err?.response?.data || err?.code);
+        await timeout(10000)
+        return checkSeiWalletRewards(address)
+    }
 }
